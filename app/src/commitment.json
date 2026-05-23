@@ -1,0 +1,11 @@
+{
+  "comment": "Day-1 stratified public commitment per IMPROVISE.md Move 1. Edit committed_target before the t+0 commitment post fires; defaults to credible tier per the ratchet rule.",
+  "tiers": {
+    "breakout": { "txns": 5000, "notional_usd": 5000, "wallets": 50 },
+    "strong":   { "txns": 3000, "notional_usd": 3000, "wallets": 30 },
+    "credible": { "txns": 2000, "notional_usd": 2000, "wallets": 20 },
+    "minimum":  { "txns": 500,  "notional_usd": 500,  "wallets": 10 }
+  },
+  "committed_tier": "credible",
+  "settlement_token_decimals": 6
+}

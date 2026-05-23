@@ -1,0 +1,23 @@
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+contracts/lib/
+
+# Rust
+auto-resolve/target/
+
+# Node
+app/node_modules/
+app/dist/
+app/.vite/
+
+# Env and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+
+# OS / editor
+.DS_Store
+*.log

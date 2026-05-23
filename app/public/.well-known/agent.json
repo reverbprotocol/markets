@@ -1,0 +1,43 @@
+{
+  "$schema_note": "Subject to alignment with whatever x402 v2 / Anthropic MCP agent-discovery / ACK-Pay spec lands as canonical. Schema as of 2026-05-11.",
+  "name": "project-reverb",
+  "description": "Binary prediction-market operator on Arc with a fixed-arbiter dispute primitive. Settles in USDC and EURC. Resolver agent consumes BLS, FRED, Census, and Fed public release feeds.",
+  "operator_persona": "adiled",
+  "operator_disclosure": "EU AI Act Article 50",
+  "endpoints": {
+    "markets": "https://[domain]/api/markets",
+    "fills": "https://[domain]/api/fills",
+    "dispute": "https://[domain]/api/dispute",
+    "agent_manifest": "https://[domain]/.well-known/agent.json",
+    "front_end": "https://[domain]/"
+  },
+  "settlement": {
+    "chain": "arc-testnet",
+    "chain_id": 5042002,
+    "tokens": ["USDC", "EURC"],
+    "fee_bps": [0, 200]
+  },
+  "contracts": {
+    "operator": "0x0000000000000000000000000000000000000000",
+    "dispute_escrow": "0x0000000000000000000000000000000000000000"
+  },
+  "builder_code": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "dispute_sla": {
+    "challenge_window_seconds": 1800,
+    "challenge_window_seconds_max": 86400,
+    "arbiter_response_max_seconds": 14400
+  },
+  "data_feeds": [
+    { "id": "bls", "host": "https://api.bls.gov/publicAPI/v2/timeseries/data/", "auth": "none-keyless" },
+    { "id": "fred", "host": "https://api.stlouisfed.org/fred/series/observations", "auth": "free-key" },
+    { "id": "census", "host": "https://api.census.gov", "auth": "free-key" }
+  ],
+  "license": "Apache-2.0",
+  "source_repos": {
+    "contracts": "https://[domain]/repos/dispute-escrow",
+    "resolver": "https://[domain]/repos/auto-resolve",
+    "front_end": "https://[domain]/repos/web"
+  },
+  "contact": "[contact-tbd]",
+  "compiled_at": "2026-05-11"
+}

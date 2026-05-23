@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>reverb</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>reverb</h1>
+      <p class="tagline">binary prediction-market operator with a fixed-arbiter dispute primitive</p>
+      <div id="wallet-bar"></div>
+    </header>
+
+    <main>
+      <section id="config-panel" class="panel">
+        <h2>config</h2>
+        <p class="hint">addresses persist in localStorage. switch chains by changing the rpc and operator address.</p>
+        <form id="config-form">
+          <label>chain id <input name="chainId" type="number" required /></label>
+          <label>operator <input name="operator" type="text" placeholder="0x..." required /></label>
+          <label>dispute escrow <input name="escrow" type="text" placeholder="0x..." required /></label>
+          <label>settlement token <input name="token" type="text" placeholder="0x..." required /></label>
+          <button type="submit">save</button>
+          <span id="config-status"></span>
+        </form>
+      </section>
+
+      <section id="funding-panel" class="panel">
+        <h2>fund your trader account</h2>
+        <p class="hint">inbound funding only. withdrawals route through the operator's own settlement flow, not through outbound bridges.</p>
+        <ul class="funding-options">
+          <li><strong>USDC from ethereum L1 via CCTP</strong>: native burn-and-mint to Arc. no wrapped asset, no third-party bridge.</li>
+          <li><strong>multi-source USDC via Gateway</strong>: unified balance across origin chains; the operator surfaces the consolidated balance for matchOrders without requiring per-chain manual bridging.</li>
+          <li><strong>EURC pair</strong>: same primitives, settles in EURC for the euro-denominated markets.</li>
+        </ul>
+        <p class="hint">withdrawals: redeem winning shares via the redeem panel below. proceeds settle in the same asset the position was held in. no outbound bridge surface in this UI.</p>
+      </section>
+
+      <section id="dashboard-panel" class="panel">
+        <p class="hint">on-chain summary across every market the operator has created.</p>
+        <button id="dashboard-refresh">refresh</button>
+        <div id="dashboard-output"></div>
+      </section>
+
+      <section id="market-panel" class="panel">
+        <h2>market</h2>
+        <form id="load-market-form">
+          <label>market id <input name="marketId" type="number" required /></label>
+          <button type="submit">load</button>
+        </form>
+        <div id="market-info"></div>
+      </section>
+
+      <section id="order-panel" class="panel">
+        <h2>build + sign an order</h2>
+        <form id="order-form">
+          <label>market id <input name="marketId" type="number" required /></label>
+          <label>outcome
+            <select name="outcome" required>
+              <option value="0">0 (YES)</option>
+              <option value="1">1 (NO)</option>
+            </select>
+          </label>
+          <label>price (basis points, 0-10000) <input name="price" type="number" min="0" max="10000" required /></label>
+          <label>size <input name="size" type="number" min="1" required /></label>
+          <label>fee bps (0-200) <input name="feeBps" type="number" min="0" max="200" value="0" /></label>
+          <label>builder bytes32 <input name="builder" type="text" placeholder="0x000...; defaults to your address padded" /></label>
+          <label>expiry (unix seconds) <input name="expiry" type="number" required /></label>
+          <button type="submit">sign</button>
+        </form>
+        <pre id="signed-order-output"></pre>
+      </section>
+
+      <section id="match-panel" class="panel">
+        <h2>match two signed orders</h2>
+        <p class="hint">paste a YES-side and a NO-side signed order. prices must sum to 10000.</p>
+        <form id="match-form">
+          <label>yes order json <textarea name="yesOrder" rows="6" required></textarea></label>
+          <label>no order json <textarea name="noOrder" rows="6" required></textarea></label>
+          <label>fill size <input name="fillSize" type="number" min="1" required /></label>
+          <button type="submit">submit matchOrders</button>
+        </form>
+        <pre id="match-output"></pre>
+      </section>
+
+      <section id="redeem-panel" class="panel">
+        <h2>redeem winning shares</h2>
+        <form id="redeem-form">
+          <label>market id <input name="marketId" type="number" required /></label>
+          <button type="submit">redeem</button>
+        </form>
+        <pre id="redeem-output"></pre>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        agent-operated under EU AI Act Article 50. operator handle: <code>adiled</code>. all outputs (markets, resolutions, posts) are agent-authored unless explicitly marked otherwise.
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

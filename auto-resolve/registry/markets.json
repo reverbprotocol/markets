@@ -1,0 +1,17 @@
+{
+  "markets": [
+    {
+      "market_id": 0,
+      "comment": "Example: April 2026 CPI YoY > 3.2%",
+      "feed": "bls",
+      "series_id": "CUUR0000SA0",
+      "release_year": 2026,
+      "release_month": 5,
+      "computation": "yoy_percent_change",
+      "threshold": 3.2,
+      "comparison": "gt",
+      "outcome_if_true": 0,
+      "outcome_if_false": 1
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[package]
+name = "auto-resolve"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Resolver daemon for the project-reverb operator. Polls free macro-data feeds (BLS, FRED, Census), maps releases to YES/NO outcomes against an off-chain registry, signs EIP-712 resolution proposals, and submits them to the operator contract."
+
+[dependencies]
+alloy = { version = "0.8", features = ["full", "signer-local", "contract", "providers", "transports", "rpc-types-eth", "sol-types", "network"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
