@@ -53,6 +53,8 @@ contract DeployLocal is Script {
             escrow,
             deployer,
             100 * 1e6,
+            deployer, // messageTransmitter placeholder for local
+            address(usdc),
             "Operator",
             "1"
         );

@@ -16,8 +16,9 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {RefundProtocolFixed} from "@reverbprotocol/protocol/RefundProtocolFixed.sol";
+import {CCTPReceiverMixin} from "@reverbprotocol/protocol/CCTPReceiverMixin.sol";
 
-contract Operator is EIP712, ReentrancyGuard {
+contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
     using SafeERC20 for IERC20;
 
     enum State { Open, ResolutionProposed, Disputed, Settled, Cancelled }
@@ -105,6 +106,7 @@ contract Operator is EIP712, ReentrancyGuard {
     event DisputeFinalized(uint256 indexed marketId, uint8 finalOutcome, bool challengerWon);
     event MarketSettled(uint256 indexed marketId, uint8 winningOutcome);
     event Redeemed(uint256 indexed marketId, address indexed holder, uint256 amount);
+    event FollowerDepositReceived(uint256 indexed marketId, address indexed recipient, uint256 amount);
 
     error NotAdmin();
     error NotResolver();
@@ -119,7 +121,7 @@ contract Operator is EIP712, ReentrancyGuard {
     error OrderExpired();
     error OrderOverfilled();
     error InvalidSignature();
-    error ZeroAddress();
+    // ZeroAddress inherited from CCTPReceiverMixin
     error ZeroSize();
     error ChallengeWindowOpen();
     error ChallengeWindowClosed();
@@ -130,9 +132,11 @@ contract Operator is EIP712, ReentrancyGuard {
         RefundProtocolFixed _disputeEscrow,
         address _treasury,
         uint256 _challengeBond,
+        address _messageTransmitter,
+        address _usdc,
         string memory eip712Name,
         string memory eip712Version
-    ) EIP712(eip712Name, eip712Version) {
+    ) EIP712(eip712Name, eip712Version) CCTPReceiverMixin(_messageTransmitter, _usdc) {
         if (_admin == address(0) || address(_disputeEscrow) == address(0) || _treasury == address(0)) revert ZeroAddress();
         admin = _admin;
         disputeEscrow = _disputeEscrow;
@@ -355,5 +359,29 @@ contract Operator is EIP712, ReentrancyGuard {
         builderFees[builder][address(token)] = 0;
         token.safeTransfer(to, amount);
         emit BuilderFeeWithdrawn(builder, address(token), to, amount);
+    }
+
+    /// @notice CCTP-receive handler. Credits a follower with a matched basket of YES + NO shares
+    ///         on the named market, equal to the minted USDC amount, and adds the minted amount
+    ///         to the market's totalCollateral. The follower may then trade out of one side via
+    ///         the matchOrders surface; the other side acts as the redeem-at-settlement claim.
+    /// @dev    Payload encoding: `abi.encode(address recipient, uint256 marketId)`.
+    ///         Settlement-token check: the market's settlementToken must equal the CCTP-minted
+    ///         USDC. EURC markets are not eligible for this receive path; follower entry on
+    ///         EURC markets goes through the normal matchOrders flow.
+    function handlePayload(bytes calldata payload, uint256 mintedAmount) internal override {
+        if (payload.length < 64 || mintedAmount == 0) return;
+        (address recipient, uint256 marketId) = abi.decode(payload, (address, uint256));
+        if (recipient == address(0) || marketId >= marketCount) return;
+
+        Market storage m = markets[marketId];
+        if (m.state != State.Open) return;
+        if (address(m.settlementToken) != address(usdc)) return;
+
+        shares[marketId][recipient][0] += mintedAmount;
+        shares[marketId][recipient][1] += mintedAmount;
+        m.totalCollateral += mintedAmount;
+
+        emit FollowerDepositReceived(marketId, recipient, mintedAmount);
     }
 }

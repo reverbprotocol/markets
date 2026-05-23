@@ -12,10 +12,26 @@ contract MockUSDC is ERC20 {
     function mint(address to, uint256 amount) external { _mint(to, amount); }
 }
 
+/// @dev Mock CCTP MessageTransmitterV2 for unit tests. Credits a configured amount of USDC to
+///      the caller on each `receiveMessage` call.
+contract MockMessageTransmitterV2 {
+    MockUSDC public usdc;
+    uint256 public mintAmount;
+
+    constructor(address _usdc) { usdc = MockUSDC(_usdc); }
+    function setMintAmount(uint256 a) external { mintAmount = a; }
+
+    function receiveMessage(bytes calldata, bytes calldata) external returns (bool) {
+        if (mintAmount > 0) usdc.mint(msg.sender, mintAmount);
+        return true;
+    }
+}
+
 contract OperatorTest is Test {
     Operator public op;
     RefundProtocolFixed public escrow;
     MockUSDC public usdc;
+    MockMessageTransmitterV2 public mt;
 
     uint256 constant ALICE_PK = 0xA11CE;
     uint256 constant BOB_PK = 0xB0B;
@@ -37,8 +53,9 @@ contract OperatorTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
+        mt = new MockMessageTransmitterV2(address(usdc));
         escrow = new RefundProtocolFixed(arbiter, address(usdc), "RefundProtocolFixed", "1");
-        op = new Operator(admin, escrow, treasury, BOND, "Operator", "1");
+        op = new Operator(admin, escrow, treasury, BOND, address(mt), address(usdc), "Operator", "1");
 
         usdc.mint(alice, 1_000_000);
         usdc.mint(bob, 1_000_000);
@@ -366,5 +383,53 @@ contract OperatorTest is Test {
         bytes32 h = op.hashOrder(o);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, h);
         return abi.encodePacked(r, s, v);
+    }
+
+    // ---------- CCTP receive (M1) ----------
+
+    function test_cctpReceive_creditsFollowerMatchedShares() public {
+        // Create a USDC-settled market.
+        vm.prank(admin);
+        uint256 mid = op.createMarket(
+            keccak256("CPI > 3.2%"),
+            IERC20(address(usdc)),
+            resolver,
+            uint64(block.timestamp + RESOLUTION_DEADLINE_OFFSET),
+            CHALLENGE_WINDOW
+        );
+
+        // Configure the mock CCTP transmitter to mint 1000 USDC on receive.
+        uint256 amount = 1_000 * 1e6;
+        mt.setMintAmount(amount);
+
+        // Payload encodes (follower, marketId) at the CCTP v2 hook offset (376 bytes in).
+        bytes memory payload = abi.encode(carol, mid);
+        bytes memory message = bytes.concat(new bytes(376), payload);
+
+        op.onCCTPReceive(message, "");
+
+        // Carol receives matched YES + NO shares equal to mintedAmount; market totalCollateral
+        // increased by the same.
+        assertEq(op.shares(mid, carol, 0), amount);
+        assertEq(op.shares(mid, carol, 1), amount);
+        (,,,,,,,, uint256 totalCollateral) = op.markets(mid);
+        assertEq(totalCollateral, amount);
+        assertEq(usdc.balanceOf(address(op)), amount);
+    }
+
+    function test_cctpReceive_noopsForUnknownMarketId() public {
+        // No markets created; market id 999 does not exist.
+        mt.setMintAmount(500 * 1e6);
+        bytes memory payload = abi.encode(carol, uint256(999));
+        bytes memory message = bytes.concat(new bytes(376), payload);
+
+        op.onCCTPReceive(message, "");
+
+        // Mint still happened (transmitter side), but no shares credited and totalCollateral
+        // for the (non-existent) market is unchanged.
+        assertEq(op.shares(999, carol, 0), 0);
+        assertEq(op.shares(999, carol, 1), 0);
+        // USDC was still credited to the Operator (sticky deposit; admin could sweep later).
+        assertEq(usdc.balanceOf(address(op)), 500 * 1e6);
     }
 }
