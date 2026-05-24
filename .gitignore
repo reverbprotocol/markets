@@ -6,6 +6,10 @@ contracts/lib/
 
 # Rust
 auto-resolve/target/
+foragers/*/target/
+agents/*/target/
+target/
+Cargo.lock
 
 # Node
 app/node_modules/

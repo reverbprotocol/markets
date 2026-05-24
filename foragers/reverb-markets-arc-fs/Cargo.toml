@@ -1,0 +1,16 @@
+[package]
+name = "reverb-markets-arc-fs"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Reverb Markets forager hive: extends reverb-arc-fs with seven product-specific tools for market creation, resolution, and dispute handling. https://reverbprotocol.github.io/protocol/OPERATING_MODEL ."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+reverb-arc-fs.workspace = true

@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "auto-resolve",
+    "foragers/reverb-markets-arc-fs",
+    "agents/reverb-markets-personas",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/reverbprotocol/markets"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tracing = "0.1"
+reverb-arc-fs = { git = "https://github.com/reverbprotocol/protocol" }
+persona-base = { git = "https://github.com/reverbprotocol/protocol" }
