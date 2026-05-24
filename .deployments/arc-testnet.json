@@ -28,16 +28,24 @@
   },
   "contracts": {
     "Operator": {
-      "proxy": "0x0000000000000000000000000000000000000000",
-      "implementation": "0x0000000000000000000000000000000000000000",
+      "proxy": "0x344b472b7b1ad0a35e11718bc063fd46f4282db2",
+      "implementation": "0x4223f0b25c6471094e5b22e393478a125057d9c8",
       "owner": "0xa22510860289751C092e67B15b827020CE09DAbf",
-      "deployedAt": "",
+      "pauser": "0x70a34ca4964a16a934432871a593acba5dd63cf1",
+      "admin": "0x5dF7624bc9845bcEB871652fED33A562E23D8AEd",
+      "treasury": "0x70a34ca4964a16a934432871a593acba5dd63cf1",
+      "challengeBond": "1000000000000000000",
+      "messageTransmitter": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+      "usdc": "0x3600000000000000000000000000000000000000",
+      "eip712Name": "Operator",
+      "eip712Version": "1",
+      "deployedAt": "2026-05-24T17:34:00Z",
       "version": 1,
-      "comment": "Populated after UUPS refactor + atomic deploy script lands."
+      "comment": "UUPS proxy. Initialize set owner=Timelock, pauser=Safe, admin=deployer (testnet posture). disputeEscrow points at the substrate RefundProtocolFixed proxy."
     }
   },
   "substrate": {
-    "RefundProtocolFixed_proxy": "0x0000000000000000000000000000000000000000",
+    "RefundProtocolFixed_proxy": "0xc8bF99c55703bc682a3Efd5c8A728EaEda3E121F",
     "comment": "Read from reverbprotocol/protocol/.deployments/arc-testnet.json."
   }
 }
