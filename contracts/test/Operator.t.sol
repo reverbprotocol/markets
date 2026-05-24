@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Operator} from "../src/Operator.sol";
 import {RefundProtocolFixed} from "@reverbprotocol/protocol/RefundProtocolFixed.sol";
 
@@ -44,6 +45,8 @@ contract OperatorTest is Test {
     address resolver = address(0x9E50);
     address arbiter = address(0xA8);
     address treasury = address(0x77);
+    address owner = address(0x1010);
+    address pauser = address(0x2020);
     address builderClaimer = address(0xB1D);
     bytes32 builderTag = bytes32(uint256(uint160(address(0xB1D))));
 
@@ -54,8 +57,28 @@ contract OperatorTest is Test {
     function setUp() public {
         usdc = new MockUSDC();
         mt = new MockMessageTransmitterV2(address(usdc));
-        escrow = new RefundProtocolFixed(arbiter, address(usdc), "RefundProtocolFixed", "1");
-        op = new Operator(admin, escrow, treasury, BOND, address(mt), address(usdc), "Operator", "1");
+
+        // Deploy RefundProtocolFixed via UUPS proxy
+        RefundProtocolFixed escrowImpl = new RefundProtocolFixed();
+        ERC1967Proxy escrowProxy = new ERC1967Proxy(
+            address(escrowImpl),
+            abi.encodeCall(
+                RefundProtocolFixed.initialize,
+                (arbiter, address(usdc), "RefundProtocolFixed", "1", owner, pauser)
+            )
+        );
+        escrow = RefundProtocolFixed(address(escrowProxy));
+
+        // Deploy Operator via UUPS proxy
+        Operator opImpl = new Operator();
+        ERC1967Proxy opProxy = new ERC1967Proxy(
+            address(opImpl),
+            abi.encodeCall(
+                Operator.initialize,
+                (admin, address(escrow), treasury, BOND, address(mt), address(usdc), "Operator", "1", owner, pauser)
+            )
+        );
+        op = Operator(address(opProxy));
 
         usdc.mint(alice, 1_000_000);
         usdc.mint(bob, 1_000_000);

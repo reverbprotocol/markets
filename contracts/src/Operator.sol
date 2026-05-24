@@ -12,13 +12,26 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 import {RefundProtocolFixed} from "@reverbprotocol/protocol/RefundProtocolFixed.sol";
 import {CCTPReceiverMixin} from "@reverbprotocol/protocol/CCTPReceiverMixin.sol";
 
-contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
+contract Operator is
+    Initializable,
+    EIP712Upgradeable,
+    ReentrancyGuardTransient,
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    UUPSUpgradeable,
+    CCTPReceiverMixin
+{
     using SafeERC20 for IERC20;
 
     enum State { Open, ResolutionProposed, Disputed, Settled, Cancelled }
@@ -66,10 +79,12 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
     uint256 public constant FEE_DENOM = 10_000;
     uint256 public constant MAX_FEE_BPS = 200; // 2% per side hard cap
 
-    RefundProtocolFixed public immutable disputeEscrow;
-    address public immutable admin;
-    uint256 public immutable challengeBond;
-    address public immutable treasury;
+    RefundProtocolFixed public disputeEscrow;
+    address public admin;
+    uint256 public challengeBond;
+    address public treasury;
+    address public pauser;
+    uint256[49] private __gap;
 
     uint256 public marketCount;
     mapping(uint256 => Market) public markets;
@@ -126,22 +141,73 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
     error ChallengeWindowOpen();
     error ChallengeWindowClosed();
     error ResolutionDeadlineNotReached();
+    error NotPauser();
 
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the proxy. Called once via the ERC1967 proxy after deploy.
+    /// @param  _admin                 Market-creator role.
+    /// @param  _disputeEscrow         Deployed dispute primitive (IRefundProtocol).
+    /// @param  _treasury              Destination for forfeited challenge bonds.
+    /// @param  _challengeBond         Bond amount in settlement-token units.
+    /// @param  _messageTransmitter    Arc MessageTransmitterV2 (for CCTP receive).
+    /// @param  _usdc                  USDC address used by the CCTP receive path.
+    /// @param  eip712Name             EIP-712 domain name.
+    /// @param  eip712Version          EIP-712 domain version.
+    /// @param  _owner                 Initial owner (TimelockController in production).
+    /// @param  _pauser                Pause authority (Safe multisig in production).
+    function initialize(
         address _admin,
-        RefundProtocolFixed _disputeEscrow,
+        address _disputeEscrow,
         address _treasury,
         uint256 _challengeBond,
         address _messageTransmitter,
         address _usdc,
         string memory eip712Name,
-        string memory eip712Version
-    ) EIP712(eip712Name, eip712Version) CCTPReceiverMixin(_messageTransmitter, _usdc) {
-        if (_admin == address(0) || address(_disputeEscrow) == address(0) || _treasury == address(0)) revert ZeroAddress();
+        string memory eip712Version,
+        address _owner,
+        address _pauser
+    ) external initializer {
+        if (_admin == address(0) || _disputeEscrow == address(0) || _treasury == address(0)) revert ZeroAddress();
+        if (_owner == address(0) || _pauser == address(0)) revert ZeroAddress();
+
+        __EIP712_init(eip712Name, eip712Version);
+        __Ownable_init(_owner);
+        __Pausable_init();
+        __CCTPReceiver_init(_messageTransmitter, _usdc);
+
         admin = _admin;
-        disputeEscrow = _disputeEscrow;
+        disputeEscrow = RefundProtocolFixed(_disputeEscrow);
         treasury = _treasury;
         challengeBond = _challengeBond;
+        pauser = _pauser;
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    modifier onlyPauser() {
+        if (msg.sender != pauser) revert NotPauser();
+        _;
+    }
+
+    /// @notice Pause user-facing market entry (matchOrders, proposeResolution, challengeResolution).
+    ///         Called by the pauser (Safe) without Timelock delay.
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    /// @notice Unpause user-facing market entry. Owner-only (Timelock-gated).
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /// @notice Rotate the pauser address. Owner-only (Timelock-gated).
+    function setPauser(address _pauser) external onlyOwner {
+        if (_pauser == address(0)) revert ZeroAddress();
+        pauser = _pauser;
     }
 
     modifier onlyAdmin() {
@@ -202,7 +268,7 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
         Order calldata noOrder,
         bytes calldata noSig,
         uint256 fillSize
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         if (fillSize == 0) revert ZeroSize();
         if (yesOrder.outcome != 0 || noOrder.outcome != 1) revert OutcomeMismatch();
         if (yesOrder.marketId != noOrder.marketId) revert MarketMismatch();
@@ -268,7 +334,7 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
         );
     }
 
-    function proposeResolution(uint256 marketId, uint8 winningOutcome) external {
+    function proposeResolution(uint256 marketId, uint8 winningOutcome) external whenNotPaused {
         Market storage m = markets[marketId];
         if (msg.sender != m.resolver) revert NotResolver();
         if (m.state != State.Open) revert InvalidState();
@@ -280,7 +346,7 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
         emit ResolutionProposed(marketId, winningOutcome, uint64(block.timestamp) + m.challengeWindowSeconds);
     }
 
-    function challengeResolution(uint256 marketId) external nonReentrant {
+    function challengeResolution(uint256 marketId) external nonReentrant whenNotPaused {
         Market storage m = markets[marketId];
         if (m.state != State.ResolutionProposed) revert InvalidState();
         if (block.timestamp >= uint256(m.proposedAt) + m.challengeWindowSeconds) revert ChallengeWindowClosed();
@@ -376,7 +442,7 @@ contract Operator is EIP712, ReentrancyGuard, CCTPReceiverMixin {
 
         Market storage m = markets[marketId];
         if (m.state != State.Open) return;
-        if (address(m.settlementToken) != address(usdc)) return;
+        if (address(m.settlementToken) != address(usdc())) return;
 
         shares[marketId][recipient][0] += mintedAmount;
         shares[marketId][recipient][1] += mintedAmount;
