@@ -1,0 +1,81 @@
+name: security
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/src/**'
+      - 'contracts/test/**'
+      - 'contracts/foundry.toml'
+      - 'contracts/remappings.txt'
+      - '.github/workflows/security.yml'
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *'
+
+jobs:
+  slither:
+    name: slither static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install dependencies
+        run: |
+          forge install --no-git foundry-rs/forge-std
+          forge install --no-git OpenZeppelin/openzeppelin-contracts
+          forge install --no-git reverbprotocol/protocol
+
+      - name: Build
+        run: forge build
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          target: 'contracts/src/'
+          fail-on: high
+          slither-config: .github/slither.config.json
+          ignore-compile: true
+
+  mythril:
+    name: mythril nightly scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Mythril
+        run: pip install mythril
+
+      - name: Run Mythril
+        run: |
+          for f in src/*.sol; do
+            myth analyze "$f" --solc-json mythril.solc.json -o markdown >> mythril-report.md || true
+          done
+
+      - name: Upload Mythril report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mythril-report
+          path: contracts/mythril-report.md

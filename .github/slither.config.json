@@ -1,0 +1,7 @@
+{
+  "detectors_to_exclude": "naming-convention,solc-version,assembly,timestamp",
+  "filter_paths": "lib/",
+  "exclude_low": true,
+  "exclude_informational": true,
+  "exclude_optimization": true
+}
