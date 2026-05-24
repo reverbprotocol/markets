@@ -25,8 +25,7 @@ Reverb Markets is a third-party prediction-market operator on Arc. EIP-712 signe
 
 ```bash
 cd contracts
-forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts reverbprotocol/protocol --no-git
-# rename lib/protocol/src/ resolves; the install creates lib/protocol/
+forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts OpenZeppelin/openzeppelin-contracts-upgradeable reverbprotocol/protocol --no-git
 forge build
 forge test -vv
 
@@ -37,6 +36,19 @@ cd ../app
 npm install
 npx tsx scripts/smoke.ts
 ```
+
+## Security posture
+
+The deployed configuration on Arc testnet (`.deployments/arc-testnet.json`):
+
+- **UUPS upgradeable.** `Operator` is an `Initializable` + `UUPSUpgradeable` contract behind an ERC1967 proxy. Inherits the upgrade-safe `CCTPReceiverMixin` from `reverbprotocol/protocol` (ERC-7201 namespaced storage so the mixin's slots never collide with the Operator layout).
+- **TimelockController owns upgrade authority.** Same TimelockController as the substrate (shared on testnet per the deployments file). 24-hour delay on every upgrade; visible on-chain during the delay window.
+- **Safe multisig fronts the TimelockController.** Same 3-of-5 Safe as the substrate. Sole proposer + executor on the TimelockController.
+- **Pausable critical paths.** `matchOrders`, `proposeResolution`, `challengeResolution` are gated by `whenNotPaused`. `pause()` is callable by the `pauser` (Safe directly). `unpause()` is `onlyOwner` (Timelock-gated). `settle`, `redeem`, `withdrawBuilderFees` remain live during pause so existing market lifecycles complete.
+- **Reentrancy.** `ReentrancyGuardTransient` on every state-mutating external function.
+- **Selector + event freeze tests.** `contracts/test/SelectorFreezeOperator.t.sol` locks 11 external function selectors (including the inherited `onCCTPReceive`) and 10 event topic hashes.
+- **Stateful fuzz invariants.** `contracts/test/OperatorInvariant.t.sol` runs 256 fuzz runs asserting initializer-only-once and owner-remains-Timelock under randomized createMarket activity.
+- **Slither static analysis.** `.github/workflows/security.yml` runs Slither on every PR with `fail-on=high`. Mythril runs nightly.
 
 ## License
 
