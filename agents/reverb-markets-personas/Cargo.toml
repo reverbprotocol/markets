@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Four sovereign persona bees for Reverb Markets: auto-create, auto-resolve, auto-dispute, arbiter. Each is a thin asker that imports persona-base. https://reverbprotocol.github.io/protocol/OPERATING_MODEL ."
+description = "Four sovereign persona bees for Reverb Markets: auto-create, auto-resolve, auto-dispute, arbiter. Each persona is its own binary holding one EOA private key and one ed25519 hid; the forager IS the bee. https://reverbprotocol.github.io/protocol/OPERATING_MODEL ."
 
 [dependencies]
 serde.workspace = true
@@ -13,4 +13,23 @@ thiserror.workspace = true
 async-trait.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+dirs.workspace = true
 persona-base.workspace = true
+reverb-arc-fs.workspace = true
+reverb-markets-arc-fs = { path = "../../foragers/reverb-markets-arc-fs" }
+
+[[bin]]
+name = "markets-auto-create"
+path = "src/bin/markets-auto-create.rs"
+
+[[bin]]
+name = "markets-auto-resolve"
+path = "src/bin/markets-auto-resolve.rs"
+
+[[bin]]
+name = "markets-auto-dispute"
+path = "src/bin/markets-auto-dispute.rs"
+
+[[bin]]
+name = "markets-arbiter"
+path = "src/bin/markets-arbiter.rs"
